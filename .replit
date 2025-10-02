@@ -4,12 +4,12 @@ hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
 channel = "stable-25_05"
-packages = ["cacert", "libiconv"]
+packages = ["cacert", "inetutils", "libiconv"]
 
 [deployment]
 deploymentTarget = "autoscale"
 build = ["npm", "run", "build"]
-run = ["npm", "run", "start"]
+run = ["gunicorn", "--bind=0.0.0.0:5000", "--reuse-port", "--workers=4", "app:app"]
 
 [[ports]]
 localPort = 5000
