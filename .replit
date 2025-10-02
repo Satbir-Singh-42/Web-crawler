@@ -1,9 +1,10 @@
-modules = ["nodejs-20", "web"]
+modules = ["nodejs-20", "web", "python-3.11"]
 run = "npm run dev"
 hidden = [".config", ".git", "generated-icon.png", "node_modules", "dist"]
 
 [nix]
 channel = "stable-25_05"
+packages = ["cacert", "libiconv"]
 
 [deployment]
 deploymentTarget = "autoscale"
@@ -39,3 +40,4 @@ args = "npm run dev"
 waitForPort = 5000
 
 [agent]
+expertMode = true
