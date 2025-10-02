@@ -13,12 +13,34 @@ import concurrent.futures
 from bs4 import BeautifulSoup
 from urllib.parse import urlparse, urljoin
 import jellyfish
+import pickle
+import pandas as pd
 lev_distance = jellyfish.levenshtein_distance
 
 app = Flask(__name__)
 app.secret_key = 'secretkey' 
 
 analysis_results = {}
+
+try:
+    with open('phishing_model.pkl', 'rb') as f:
+        ml_model = pickle.load(f)
+    print("ML model loaded successfully")
+except Exception as e:
+    print(f"Warning: Could not load ML model: {e}")
+    ml_model = None
+
+def extract_ml_features(domain):
+    features = {}
+    features['length'] = len(domain)
+    features['has_digit'] = int(bool(re.search(r'\d', domain)))
+    features['has_hyphen'] = int('-' in domain)
+    features['num_dots'] = domain.count('.')
+    features['num_digits'] = sum(c.isdigit() for c in domain)
+    features['suspicious_keywords'] = int(any(kw in domain.lower() for kw in ['login', 'verify', 'secure', 'account', 'update', 'confirm']))
+    features['tld_length'] = len(domain.split('.')[-1]) if '.' in domain else 0
+    features['subdomain_count'] = domain.count('.') - 1 if domain.count('.') > 0 else 0
+    return features
 
 class AdvancedDomainChecker:
     def __init__(self, target_domain):
@@ -407,6 +429,85 @@ def check_domain():
         'is_legitimate': is_legitimate,
         'reason': reason
     })
+
+@app.route('/ml-detect', methods=['POST'])
+def ml_detect():
+    """Detect phishing domain using ML model"""
+    data = request.get_json()
+    domain = data.get('domain')
+    
+    if not domain:
+        return jsonify({'error': 'Domain is required'}), 400
+    
+    if ml_model is None:
+        return jsonify({'error': 'ML model not available'}), 500
+    
+    try:
+        domain_clean = domain.replace('http://', '').replace('https://', '').split('/')[0]
+        
+        features = extract_ml_features(domain_clean)
+        feature_columns = ['length', 'has_digit', 'has_hyphen', 'num_dots', 'num_digits', 'suspicious_keywords', 'tld_length', 'subdomain_count']
+        feature_values = [features[col] for col in feature_columns]
+        
+        prediction = ml_model.predict([feature_values])[0]
+        probability = ml_model.predict_proba([feature_values])[0]
+        
+        result = {
+            'domain': domain_clean,
+            'is_phishing': bool(prediction),
+            'confidence': float(probability[1]) * 100 if prediction else float(probability[0]) * 100,
+            'classification': 'Phishing' if prediction else 'Legitimate',
+            'features': features
+        }
+        
+        return jsonify(result)
+    
+    except Exception as e:
+        return jsonify({'error': f'Error processing domain: {str(e)}'}), 500
+
+@app.route('/batch-detect', methods=['POST'])
+def batch_detect():
+    """Batch detect phishing domains from uploaded Excel file"""
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        return jsonify({'error': 'File must be Excel format (.xlsx or .xls)'}), 400
+    
+    if ml_model is None:
+        return jsonify({'error': 'ML model not available'}), 500
+    
+    try:
+        df = pd.read_excel(file)
+        
+        if 'domain' not in df.columns:
+            return jsonify({'error': 'Excel file must have a "domain" column'}), 400
+        
+        results = []
+        for domain in df['domain']:
+            domain_clean = str(domain).replace('http://', '').replace('https://', '').split('/')[0]
+            features = extract_ml_features(domain_clean)
+            feature_columns = ['length', 'has_digit', 'has_hyphen', 'num_dots', 'num_digits', 'suspicious_keywords', 'tld_length', 'subdomain_count']
+            feature_values = [features[col] for col in feature_columns]
+            
+            prediction = ml_model.predict([feature_values])[0]
+            probability = ml_model.predict_proba([feature_values])[0]
+            
+            results.append({
+                'domain': domain_clean,
+                'is_phishing': bool(prediction),
+                'confidence': float(probability[1]) * 100 if prediction else float(probability[0]) * 100,
+                'classification': 'Phishing' if prediction else 'Legitimate'
+            })
+        
+        return jsonify({'results': results, 'total': len(results)})
+    
+    except Exception as e:
+        return jsonify({'error': f'Error processing file: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True, threaded=True)
