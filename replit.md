@@ -4,16 +4,23 @@
 This is a Flask-based web application that detects and analyzes potential phishing domains by performing comprehensive security checks, SSL validation, domain authentication, and content analysis. The tool helps identify websites that may be mimicking legitimate domains for malicious purposes.
 
 ## Recent Changes
-- **October 2, 2025**: Integrated Google Gemini API with ML fallback system
+- **October 2, 2025**: Removed ML-Powered Detection UI from frontend (backend endpoints remain)
+  - Removed ML-Powered Detection section from frontend interface
+  - Backend ML endpoints (/ml-detect, /batch-detect) still available for programmatic access
+  - Google Gemini API and ML model fallback system remain functional in backend
+  
+- **October 2, 2025**: Initial Replit setup
+  - Installed Python 3.11 and all dependencies from requirements.txt
+  - Configured Flask to bind to 0.0.0.0:5000 for Replit environment
+  - Set up development workflow with `python app.py`
+  - Configured deployment with Gunicorn for production (autoscale)
+  - Verified .gitignore for Python project
+  
+- **Previous**: Integrated Google Gemini API with ML fallback system
   - Added Google Gemini AI for phishing domain detection
   - Implemented fallback mechanism: Gemini API → ML model when API unavailable/quota exceeded
   - Created Excel dataset with 70 domains (35 legitimate + 35 phishing)
   - Trained RandomForest ML model achieving 100% accuracy
-  - Added new ML-powered detection endpoints and UI
-  - Configured Flask to bind to 0.0.0.0:5000
-  - Set up workflow for development server
-  - Installed all Python dependencies including google-generativeai
-  - Configured deployment with Gunicorn for production
 
 ## Project Architecture
 
@@ -80,8 +87,8 @@ Handles phishing detection:
 - `GET /results/<analysis_id>`: View analysis results
 - `GET /api/analysis/<analysis_id>`: Get analysis data (JSON)
 - `POST /check-domain`: Quick domain legitimacy check
-- `POST /ml-detect`: AI-powered phishing detection (Gemini → ML fallback)
-- `POST /batch-detect`: Batch domain analysis from Excel files
+- `POST /ml-detect`: AI-powered phishing detection (backend only - Gemini → ML fallback)
+- `POST /batch-detect`: Batch domain analysis from Excel files (backend only)
 
 ### Configuration
 
@@ -105,24 +112,28 @@ Handles phishing detection:
 
 ## Usage
 
-### Traditional Analysis
+### Web Interface
 1. Enter a target domain (e.g., `google.com`)
 2. Click "Analyze Domain" to start detection
 3. View results showing potential phishing domains
 4. Export results as JSON or CSV
 5. Use "Quick Check" for single domain verification
 
-### AI/ML-Powered Detection
-1. **Single Domain Check**: 
-   - Enter a domain in the ML-Powered Detection section
-   - Click "Detect with ML" for instant AI analysis
-   - System tries Gemini API first, falls back to ML model if unavailable
-   - View classification, confidence score, and AI reasoning
+### Backend API Access (Programmatic)
+The ML-powered detection endpoints are available for programmatic access:
 
-2. **Batch Detection**:
+1. **Single Domain Check** (`POST /ml-detect`):
+   ```bash
+   curl -X POST http://localhost:5000/ml-detect \
+     -H "Content-Type: application/json" \
+     -d '{"domain":"example.com"}'
+   ```
+   - System tries Gemini API first, falls back to ML model if unavailable
+   - Returns classification, confidence score, and AI reasoning
+
+2. **Batch Detection** (`POST /batch-detect`):
    - Upload an Excel file with a "domain" column
-   - Click "Detect Batch" to analyze all domains
-   - Download results showing detection method used for each domain
+   - Returns analysis results for all domains with detection method used
 
 ## Known Limitations
 - Analysis depends on network availability
