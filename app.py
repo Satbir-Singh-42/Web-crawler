@@ -15,6 +15,8 @@ from urllib.parse import urlparse, urljoin
 import jellyfish
 import pickle
 import pandas as pd
+import google.generativeai as genai
+import os
 lev_distance = jellyfish.levenshtein_distance
 
 app = Flask(__name__)
@@ -30,7 +32,21 @@ except Exception as e:
     print(f"Warning: Could not load ML model: {e}")
     ml_model = None
 
+try:
+    api_key = os.environ.get('GOOGLE_API_KEY')
+    if api_key:
+        genai.configure(api_key=api_key)
+        gemini_model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        print("Google Gemini API configured successfully")
+    else:
+        gemini_model = None
+        print("Warning: GOOGLE_API_KEY not found")
+except Exception as e:
+    print(f"Warning: Could not configure Gemini API: {e}")
+    gemini_model = None
+
 def extract_ml_features(domain):
+    """Extract features from domain for ML model"""
     features = {}
     features['length'] = len(domain)
     features['has_digit'] = int(bool(re.search(r'\d', domain)))
@@ -41,6 +57,46 @@ def extract_ml_features(domain):
     features['tld_length'] = len(domain.split('.')[-1]) if '.' in domain else 0
     features['subdomain_count'] = domain.count('.') - 1 if domain.count('.') > 0 else 0
     return features
+
+def check_with_gemini(domain):
+    """Check domain credibility using Google Gemini API with fallback"""
+    if not gemini_model:
+        return None, "Gemini API not available"
+    
+    try:
+        prompt = f"""Analyze this domain for phishing indicators: {domain}
+
+Please evaluate if this domain is legitimate or potentially a phishing domain. Consider:
+1. Character substitutions (like 0 for O, 1 for l)
+2. Suspicious keywords (login, verify, secure, account)
+3. Domain structure and patterns
+4. Known legitimate domains
+
+Respond in JSON format with:
+{{
+  "is_phishing": true/false,
+  "confidence": 0-100,
+  "reasons": ["reason1", "reason2"],
+  "classification": "Phishing" or "Legitimate"
+}}"""
+
+        response = gemini_model.generate_content(prompt)
+        
+        import json
+        result_text = response.text.strip()
+        if result_text.startswith('```json'):
+            result_text = result_text[7:-3].strip()
+        elif result_text.startswith('```'):
+            result_text = result_text[3:-3].strip()
+            
+        result = json.loads(result_text)
+        return result, None
+        
+    except Exception as e:
+        error_msg = str(e)
+        if 'quota' in error_msg.lower() or 'rate' in error_msg.lower():
+            return None, f"API quota exceeded: {error_msg}"
+        return None, f"API error: {error_msg}"
 
 class AdvancedDomainChecker:
     def __init__(self, target_domain):
@@ -432,19 +488,36 @@ def check_domain():
 
 @app.route('/ml-detect', methods=['POST'])
 def ml_detect():
-    """Detect phishing domain using ML model"""
+    """Detect phishing domain using Gemini API with ML model fallback"""
     data = request.get_json()
     domain = data.get('domain')
     
     if not domain:
         return jsonify({'error': 'Domain is required'}), 400
     
+    domain_clean = domain.replace('http://', '').replace('https://', '').split('/')[0]
+    
+    gemini_result, gemini_error = check_with_gemini(domain_clean)
+    
+    if gemini_result:
+        result = {
+            'domain': domain_clean,
+            'is_phishing': gemini_result.get('is_phishing', False),
+            'confidence': float(gemini_result.get('confidence', 0)),
+            'classification': gemini_result.get('classification', 'Unknown'),
+            'reasons': gemini_result.get('reasons', []),
+            'detection_method': 'Google Gemini API',
+            'features': extract_ml_features(domain_clean)
+        }
+        return jsonify(result)
+    
     if ml_model is None:
-        return jsonify({'error': 'ML model not available'}), 500
+        return jsonify({
+            'error': 'Both Gemini API and ML model unavailable',
+            'gemini_error': gemini_error
+        }), 500
     
     try:
-        domain_clean = domain.replace('http://', '').replace('https://', '').split('/')[0]
-        
         features = extract_ml_features(domain_clean)
         feature_columns = ['length', 'has_digit', 'has_hyphen', 'num_dots', 'num_digits', 'suspicious_keywords', 'tld_length', 'subdomain_count']
         feature_values = [features[col] for col in feature_columns]
@@ -457,6 +530,8 @@ def ml_detect():
             'is_phishing': bool(prediction),
             'confidence': float(probability[1]) * 100 if prediction else float(probability[0]) * 100,
             'classification': 'Phishing' if prediction else 'Legitimate',
+            'detection_method': 'ML Model (Fallback)',
+            'gemini_error': gemini_error,
             'features': features
         }
         
@@ -467,7 +542,7 @@ def ml_detect():
 
 @app.route('/batch-detect', methods=['POST'])
 def batch_detect():
-    """Batch detect phishing domains from uploaded Excel file"""
+    """Batch detect phishing domains using Gemini API with ML model fallback"""
     if 'file' not in request.files:
         return jsonify({'error': 'No file uploaded'}), 400
     
@@ -478,9 +553,6 @@ def batch_detect():
     if not file.filename.endswith(('.xlsx', '.xls')):
         return jsonify({'error': 'File must be Excel format (.xlsx or .xls)'}), 400
     
-    if ml_model is None:
-        return jsonify({'error': 'ML model not available'}), 500
-    
     try:
         df = pd.read_excel(file)
         
@@ -488,23 +560,51 @@ def batch_detect():
             return jsonify({'error': 'Excel file must have a "domain" column'}), 400
         
         results = []
+        gemini_count = 0
+        ml_count = 0
+        
         for domain in df['domain']:
             domain_clean = str(domain).replace('http://', '').replace('https://', '').split('/')[0]
-            features = extract_ml_features(domain_clean)
-            feature_columns = ['length', 'has_digit', 'has_hyphen', 'num_dots', 'num_digits', 'suspicious_keywords', 'tld_length', 'subdomain_count']
-            feature_values = [features[col] for col in feature_columns]
             
-            prediction = ml_model.predict([feature_values])[0]
-            probability = ml_model.predict_proba([feature_values])[0]
+            gemini_result, gemini_error = check_with_gemini(domain_clean)
             
-            results.append({
-                'domain': domain_clean,
-                'is_phishing': bool(prediction),
-                'confidence': float(probability[1]) * 100 if prediction else float(probability[0]) * 100,
-                'classification': 'Phishing' if prediction else 'Legitimate'
-            })
+            if gemini_result:
+                results.append({
+                    'domain': domain_clean,
+                    'is_phishing': gemini_result.get('is_phishing', False),
+                    'confidence': float(gemini_result.get('confidence', 0)),
+                    'classification': gemini_result.get('classification', 'Unknown'),
+                    'detection_method': 'Gemini API'
+                })
+                gemini_count += 1
+            elif ml_model:
+                features = extract_ml_features(domain_clean)
+                feature_columns = ['length', 'has_digit', 'has_hyphen', 'num_dots', 'num_digits', 'suspicious_keywords', 'tld_length', 'subdomain_count']
+                feature_values = [features[col] for col in feature_columns]
+                
+                prediction = ml_model.predict([feature_values])[0]
+                probability = ml_model.predict_proba([feature_values])[0]
+                
+                results.append({
+                    'domain': domain_clean,
+                    'is_phishing': bool(prediction),
+                    'confidence': float(probability[1]) * 100 if prediction else float(probability[0]) * 100,
+                    'classification': 'Phishing' if prediction else 'Legitimate',
+                    'detection_method': 'ML Model'
+                })
+                ml_count += 1
+            else:
+                results.append({
+                    'domain': domain_clean,
+                    'error': 'Both Gemini API and ML model unavailable'
+                })
         
-        return jsonify({'results': results, 'total': len(results)})
+        return jsonify({
+            'results': results, 
+            'total': len(results),
+            'gemini_count': gemini_count,
+            'ml_count': ml_count
+        })
     
     except Exception as e:
         return jsonify({'error': f'Error processing file: {str(e)}'}), 500

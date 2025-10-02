@@ -10,3 +10,4 @@ gunicorn
 openpyxl
 pandas
 scikit-learn
+google-generativeai
