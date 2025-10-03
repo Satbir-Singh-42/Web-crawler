@@ -15,10 +15,6 @@ run = ["gunicorn", "--bind=0.0.0.0:5000", "--reuse-port", "--workers=4", "app:ap
 localPort = 5000
 externalPort = 80
 
-[[ports]]
-localPort = 42201
-externalPort = 3000
-
 [env]
 PORT = "5000"
 
@@ -32,10 +28,10 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "workflow.run"
-args = "Start application"
+args = "Flask App"
 
 [[workflows.workflow]]
-name = "Start application"
+name = "Flask App"
 author = "agent"
 
 [[workflows.workflow.tasks]]
