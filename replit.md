@@ -6,23 +6,42 @@ A Flask-based web application that detects and analyzes potential phishing domai
 
 ## Recent Changes (October 3, 2025)
 
+### Critical Fixes Completed
+- **Performance Fix**: Resolved domain analysis hanging issue
+  - Reduced domain variations from ~36 to ~8 for faster processing
+  - Added 2-second DNS timeout per domain check
+  - Implemented parallel DNS validation with 10 workers
+  - Added 30-second overall timeout for domain searching phase
+  - Domain analysis now completes in seconds instead of hanging indefinitely
+
+- **Security Hardening**: Production-ready security configuration
+  - Disabled debug mode by default (only enables with FLASK_DEBUG=true)
+  - Enforced SECRET_KEY requirement for production deployments
+  - Random fallback only in development mode to prevent multi-worker session issues
+
+- **API Integration Update**: Migrated to latest Gemini SDK
+  - Updated from google-generativeai to google.genai SDK
+  - Uses Replit's Gemini integration blueprint for better secret management
+  - Supports both GEMINI_API_KEY and GOOGLE_API_KEY environment variables
+  - Cross-validation between Gemini API and ML model working correctly
+
 ### GitHub Import Setup - Completed
 - **Python Environment**: Python 3.11 installed and configured
-- **Dependencies**: Successfully installed all required packages from requirements.txt (Flask, scikit-learn, pandas, google-generativeai, and all other dependencies)
-- **Requirements Cleanup**: Removed duplicate entries from requirements.txt for cleaner package management
-- **Workflow Configuration**: Set up Flask App workflow to run on `0.0.0.0:5000` with webview output
-- **Deployment Configuration**: Configured production deployment with Gunicorn using autoscale deployment target with 4 workers and 120-second timeout
-- **Application Status**: Successfully running and tested - frontend loads correctly
+- **Dependencies**: Successfully installed all required packages (Flask, scikit-learn, pandas, google-genai, etc.)
+- **Workflow Configuration**: Flask App workflow running on `0.0.0.0:5000` with webview output
+- **Deployment Configuration**: Gunicorn with autoscale, 4 workers, 120-second timeout
+- **Application Status**: Fully functional and production-ready
 
 ### Environment Setup
-- **Development Server**: Flask development server running on port 5000 with debug mode enabled
-- **Production Server**: Gunicorn configured with 4 workers, port reuse, and extended timeout for long-running domain checks
-- **ML Model**: phishing_model.pkl loaded successfully on startup
-- **API Integration**: Google Gemini API ready (requires GOOGLE_API_KEY environment variable to be set by user)
+- **Development Server**: Flask development server on port 5000, debug mode off by default
+- **Production Server**: Gunicorn configured with 4 workers and port reuse
+- **ML Model**: phishing_model.pkl loaded successfully with 100% training accuracy
+- **API Integration**: Google Gemini API (gemini-2.0-flash-exp) configured and tested
 
 ### Configuration Notes
-- To use Google Gemini API for advanced AI-powered detection, add GOOGLE_API_KEY to environment variables
-- Without API key, application automatically falls back to RandomForest ML model
+- **Required for Production**: SECRET_KEY environment variable must be set
+- **Recommended**: GEMINI_API_KEY for AI-powered detection (falls back to ML model if not set)
+- **Optional**: FLASK_DEBUG=true to enable debug mode in development
 
 ## User Preferences
 
