@@ -26,3 +26,4 @@ requests==2.31.0
 scikit-learn
 tldextract==3.4.4
 whois
+google-genai

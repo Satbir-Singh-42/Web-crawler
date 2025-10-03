@@ -16,7 +16,8 @@ import jellyfish
 import pickle
 import pandas as pd
 import os
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 lev_distance = jellyfish.levenshtein_distance
 
 app = Flask(__name__)
@@ -33,17 +34,16 @@ except Exception as e:
     ml_model = None
 
 try:
-    api_key = os.environ.get('GOOGLE_API_KEY')
+    api_key = os.environ.get('GEMINI_API_KEY') or os.environ.get('GOOGLE_API_KEY')
     if api_key:
-        genai.configure(api_key=api_key)
-        gemini_model = genai.GenerativeModel('gemini-2.0-flash-exp')
+        gemini_client = genai.Client(api_key=api_key)
         print("Google Gemini API configured successfully")
     else:
-        gemini_model = None
-        print("Warning: GOOGLE_API_KEY not found in environment variables")
+        gemini_client = None
+        print("Warning: GEMINI_API_KEY not found in environment variables")
 except Exception as e:
     print(f"Warning: Could not configure Gemini API: {e}")
-    gemini_model = None
+    gemini_client = None
 
 def extract_ml_features(domain):
     """Extract features from domain for ML model"""
@@ -95,7 +95,7 @@ def validate_gemini_response(result):
 
 def check_with_gemini(domain):
     """Check domain credibility using Google Gemini API with comprehensive validation"""
-    if not gemini_model:
+    if not gemini_client:
         return None, "Gemini API not available"
     
     try:
@@ -118,7 +118,10 @@ Respond ONLY in valid JSON format with:
 
 Important: Provide at least 2-3 specific reasons for your classification."""
 
-        response = gemini_model.generate_content(prompt)
+        response = gemini_client.models.generate_content(
+            model='gemini-2.0-flash-exp',
+            contents=prompt
+        )
         
         if not response or not response.text:
             return None, "Empty response from Gemini API"
@@ -288,21 +291,17 @@ class PhishingDetector:
         domain_parts = tldextract.extract(self.target_domain)
         base_domain = f"{domain_parts.domain}.{domain_parts.suffix}"
         
-        prefixes = ['login', 'signin', 'verify', 'secure', 'account', 'auth']
-        suffixes = ['login', 'signin', 'verify', 'secure', 'account', 'auth']
+        prefixes = ['login', 'secure', 'account']
+        suffixes = ['login', 'secure', 'verify']
         
         for prefix in prefixes:
             variations.add(f"{prefix}-{base_domain}")
-            variations.add(f"{prefix}.{base_domain}")
-            variations.add(f"{prefix}{base_domain}")
             
         for suffix in suffixes:
             variations.add(f"{base_domain}-{suffix}")
-            variations.add(f"{base_domain}.{suffix}")
-            variations.add(f"{base_domain}{suffix}")
             
         if domain_parts.suffix == 'com':
-            for tld in ['net', 'org', 'info', 'biz']:
+            for tld in ['net', 'org']:
                 variations.add(f"{domain_parts.domain}.{tld}")
                 
         return variations
@@ -315,9 +314,17 @@ class PhishingDetector:
         print(f"Generated {len(generated_domains)} domain variations")
         
         valid_domains = []
-        for domain in generated_domains:
-            if self.validate_domain_exists(domain):
-                valid_domains.append(domain)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_domain = {executor.submit(self.validate_domain_exists, domain): domain for domain in generated_domains}
+            
+            for future in concurrent.futures.as_completed(future_to_domain, timeout=30):
+                domain = future_to_domain[future]
+                try:
+                    if future.result():
+                        valid_domains.append(domain)
+                        print(f"Found valid domain: {domain}")
+                except Exception as e:
+                    pass
                 
         print(f"Found {len(valid_domains)} valid domains to check")
         return valid_domains
@@ -325,7 +332,10 @@ class PhishingDetector:
     def validate_domain_exists(self, domain):
         """Check if a domain actually exists by resolving DNS"""
         try:
-            dns.resolver.resolve(domain, 'A')
+            resolver = dns.resolver.Resolver()
+            resolver.timeout = 2
+            resolver.lifetime = 2
+            resolver.resolve(domain, 'A')
             return True
         except:
             return False
