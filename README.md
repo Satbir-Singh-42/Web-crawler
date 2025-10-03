@@ -30,20 +30,7 @@ A powerful Flask-based web application that detects and analyzes potential phish
 
 ## 🚀 Quick Start
 
-### Option 1: Run on Replit (Recommended)
-
-1. **Fork or Import** this repository to Replit
-2. Click the **Run** button - Replit will automatically:
-   - Install Python 3.11 and all dependencies
-   - Start the Flask server on port 5000
-   - Make the app available via Replit's web interface
-
-3. **(Optional)** Add Google Gemini API Key:
-   - Go to Secrets (lock icon in Replit sidebar)
-   - Add secret: `GOOGLE_API_KEY` with your Gemini API key
-   - Restart the app to enable AI-powered detection
-
-### Option 2: Manual Installation (Linux/macOS/Windows)
+### Installation (Linux/macOS/Windows)
 
 1. **Clone the repository**:
    ```bash
@@ -181,7 +168,7 @@ The tool uses multiple techniques to identify phishing domains:
 ├── requirements.txt       # Python dependencies
 ├── .gitignore            # Git ignore rules
 ├── README.md             # This file
-├── replit.md             # Replit-specific documentation
+├── DOCUMENTATION.md      # Technical documentation
 └── templates/            # HTML templates
     ├── index.html        # Main interface
     └── results.html      # Results display
@@ -189,16 +176,7 @@ The tool uses multiple techniques to identify phishing domains:
 
 ## 🚢 Deployment
 
-### Deploy on Replit (Production)
-
-1. Click the **Deploy** button in Replit
-2. Select **Autoscale** deployment type
-3. Replit will automatically use Gunicorn with optimal settings:
-   ```bash
-   gunicorn --bind=0.0.0.0:5000 --reuse-port --workers=4 app:app
-   ```
-
-### Manual Production Deployment
+### Production Deployment
 
 For production environments, use Gunicorn WSGI server:
 

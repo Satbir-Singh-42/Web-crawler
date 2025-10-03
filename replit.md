@@ -1,151 +1,77 @@
-# Advanced Phishing Domain Detector
+# Phishing Domain Detector
 
 ## Overview
-This is a Flask-based web application that detects and analyzes potential phishing domains by performing comprehensive security checks, SSL validation, domain authentication, and content analysis. The tool helps identify websites that may be mimicking legitimate domains for malicious purposes.
 
-## Recent Changes
-- **October 2, 2025**: Removed ML-Powered Detection UI from frontend (backend endpoints remain)
-  - Removed ML-Powered Detection section from frontend interface
-  - Backend ML endpoints (/ml-detect, /batch-detect) still available for programmatic access
-  - Google Gemini API and ML model fallback system remain functional in backend
-  
-- **October 2, 2025**: Initial Replit setup
-  - Installed Python 3.11 and all dependencies from requirements.txt
-  - Configured Flask to bind to 0.0.0.0:5000 for Replit environment
-  - Set up development workflow with `python app.py`
-  - Configured deployment with Gunicorn for production (autoscale)
-  - Verified .gitignore for Python project
-  
-- **Previous**: Integrated Google Gemini API with ML fallback system
-  - Added Google Gemini AI for phishing domain detection
-  - Implemented fallback mechanism: Gemini API → ML model when API unavailable/quota exceeded
-  - Created Excel dataset with 70 domains (35 legitimate + 35 phishing)
-  - Trained RandomForest ML model achieving 100% accuracy
+A Flask-based web application that detects and analyzes potential phishing domains through comprehensive security checks, SSL validation, domain authentication, and AI/ML-powered content analysis. The system uses Google Gemini API with a RandomForest ML fallback to provide intelligent phishing detection with detailed risk assessment.
 
-## Project Architecture
+## User Preferences
 
-### Technology Stack
-- **Backend**: Python 3.11 + Flask 2.3.3
-- **AI/ML**:
-  - `google-generativeai`: Google Gemini API for AI-powered phishing detection
-  - `scikit-learn`: RandomForest ML model (100% accuracy on test set)
-  - `pandas`: Data processing and Excel file handling
-  - `openpyxl`: Excel file operations
-- **Security Libraries**:
-  - `tldextract`: Domain parsing and extraction
-  - `beautifulsoup4`: HTML parsing and content analysis
-  - `requests`: HTTP requests for domain checking
-  - `python-whois`: WHOIS information retrieval
-  - `dnspython`: DNS record validation
-  - `jellyfish`: String similarity analysis (Levenshtein distance)
+Preferred communication style: Simple, everyday language.
 
-### Key Features
-1. **AI-Powered Detection**: Google Gemini API for intelligent phishing analysis
-2. **ML Model Fallback**: RandomForest classifier with 100% accuracy when API unavailable
-3. **Domain Legitimacy Verification**: Multi-layered domain validation
-4. **SSL Certificate Analysis**: Validates SSL certificates from trusted CAs
-5. **Domain Authentication**: Checks DMARC, SPF, and security records
-6. **WHOIS Analysis**: Examines domain registration details and age
-7. **Content Scanning**: Analyzes web content for phishing indicators
-8. **Similarity Detection**: Identifies domain spoofing using Levenshtein distance
-9. **Batch Processing**: Upload Excel files to analyze multiple domains
-10. **Real-time Analysis**: Multi-threaded scanning for efficient detection
-11. **Risk Assessment**: Classifies domains as High, Medium, or Low risk
+## System Architecture
 
-### Project Structure
-```
-.
-├── app.py                 # Main Flask application
-├── phishing_model.pkl     # Trained RandomForest ML model
-├── domain_dataset.xlsx    # Training dataset (70 domains)
-├── templates/             # HTML templates
-│   ├── index.html        # Main interface
-│   └── results.html      # Results display
-├── requirements.txt       # Python dependencies
-├── .gitignore            # Git ignore rules
-└── replit.md             # Project documentation
-```
+### Core Application Framework
 
-### Core Components
+**Flask Web Application**: The system is built on Flask 2.3.3, following a traditional server-side rendering pattern with:
+- Route handlers in `app.py` for domain analysis and results display
+- Session-based state management for analysis results storage
+- Template rendering with Bootstrap 5 for responsive UI
+- RESTful API endpoints for programmatic access (ML detection endpoints)
 
-#### AdvancedDomainChecker Class
-Responsible for domain legitimacy verification:
-- SSL certificate validation
-- Domain authentication (DMARC/SPF records)
-- WHOIS registration checks
+**Deployment Strategy**: Configured for both development (`python app.py`) and production (Gunicorn with autoscaling), binding to `0.0.0.0:5000` for web accessibility.
 
-#### PhishingDetector Class
-Handles phishing detection:
-- Generates domain variations (common phishing patterns)
-- Validates domain existence via DNS
-- Analyzes content for phishing indicators
-- Calculates risk levels
+### AI/ML Detection Architecture
 
-### API Endpoints
-- `GET /`: Main interface
-- `POST /analyze`: Start domain analysis
-- `GET /results/<analysis_id>`: View analysis results
-- `GET /api/analysis/<analysis_id>`: Get analysis data (JSON)
-- `POST /check-domain`: Quick domain legitimacy check
-- `POST /ml-detect`: AI-powered phishing detection (backend only - Gemini → ML fallback)
-- `POST /batch-detect`: Batch domain analysis from Excel files (backend only)
+**Dual-Layer Intelligence System**: The application implements a smart fallback mechanism:
 
-### Configuration
+1. **Primary**: Google Gemini API (`gemini-2.0-flash-exp`) for advanced AI-powered phishing detection with natural language reasoning
+2. **Fallback**: RandomForest ML classifier (100% accuracy on training set) loaded from `phishing_model.pkl`
 
-#### Development
-- Server runs on port 5000
-- Debug mode enabled
-- Threaded mode for concurrent requests
-- Workflow: `python app.py`
+**Feature Engineering**: Domain analysis extracts structural features including:
+- Domain length, digit count, hyphen presence
+- Keyword analysis for phishing indicators
+- String similarity detection using Levenshtein distance
+- Multi-threaded concurrent analysis for performance
 
-#### Production
-- Uses Gunicorn WSGI server
-- 4 worker processes
-- Deployment target: autoscale
-- Command: `gunicorn --bind=0.0.0.0:5000 --reuse-port --workers=4 app:app`
+### Domain Validation Pipeline
 
-## Security Considerations
-- Application performs network requests to external domains
-- SSL verification is enabled by default
-- User input is sanitized before processing
-- Session management uses Flask's built-in secret key (should be changed in production)
+**Multi-Layer Security Checks**: The system performs comprehensive validation through:
 
-## Usage
+1. **SSL Certificate Analysis**: Validates certificates against trusted Certificate Authorities
+2. **Domain Authentication**: Checks DMARC, SPF, and DNS security records using `dnspython`
+3. **WHOIS Analysis**: Examines domain registration age and ownership details
+4. **Content Scanning**: BeautifulSoup-based HTML parsing for phishing pattern detection
+5. **Similarity Detection**: Jellyfish library for domain spoofing identification
 
-### Web Interface
-1. Enter a target domain (e.g., `google.com`)
-2. Click "Analyze Domain" to start detection
-3. View results showing potential phishing domains
-4. Export results as JSON or CSV
-5. Use "Quick Check" for single domain verification
+**Result Aggregation**: Analysis results stored in-memory dictionary with UUID-based session tracking, providing risk classification (High/Medium/Low).
 
-### Backend API Access (Programmatic)
-The ML-powered detection endpoints are available for programmatic access:
+### Data Processing
 
-1. **Single Domain Check** (`POST /ml-detect`):
-   ```bash
-   curl -X POST http://localhost:5000/ml-detect \
-     -H "Content-Type: application/json" \
-     -d '{"domain":"example.com"}'
-   ```
-   - System tries Gemini API first, falls back to ML model if unavailable
-   - Returns classification, confidence score, and AI reasoning
+**Batch Analysis**: Supports Excel file uploads for multi-domain analysis using pandas and openpyxl, enabling enterprise-scale phishing detection workflows.
 
-2. **Batch Detection** (`POST /batch-detect`):
-   - Upload an Excel file with a "domain" column
-   - Returns analysis results for all domains with detection method used
+**Model Training**: ML model trained on 70-domain dataset (35 legitimate, 35 phishing) using scikit-learn, achieving perfect accuracy on test set.
 
-## Known Limitations
-- Analysis depends on network availability
-- Some legitimate domains may trigger false positives
-- WHOIS data may not be available for all domains
-- DNS resolution timeouts may occur
-- Rate limiting may affect large-scale scans
+## External Dependencies
 
-## Future Enhancements
-- Database storage for analysis history
-- User authentication and session management
-- Scheduled scanning for monitored domains
-- Email alerts for detected phishing domains
-- API rate limiting and caching
-- Enhanced AI model training with more diverse datasets
+### AI/ML Services
+- **Google Gemini API**: Primary AI detection service (requires `GOOGLE_API_KEY` environment variable)
+- **scikit-learn**: RandomForest ML model training and inference
+- **pandas**: Excel data processing and feature extraction
+- **openpyxl**: Excel file I/O operations
+
+### Security & Network Libraries
+- **tldextract**: Top-level domain parsing and extraction
+- **python-whois**: WHOIS protocol implementation
+- **dnspython**: DNS record resolution and validation
+- **requests**: HTTP client for domain accessibility checks
+- **beautifulsoup4**: HTML parsing and content analysis
+
+### Utility Libraries
+- **jellyfish**: String similarity algorithms (Levenshtein distance)
+- **Flask**: Web framework with session management
+- **Gunicorn**: Production WSGI server with autoscaling
+
+### Frontend Stack
+- **Bootstrap 5.1.3**: Responsive UI framework
+- **Font Awesome 6.0.0**: Icon library
+- **Native JavaScript**: Form handling and API interactions
