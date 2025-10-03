@@ -23,7 +23,6 @@ A Flask-based web application that detects and analyzes potential phishing domai
 ### Configuration Notes
 - To use Google Gemini API for advanced AI-powered detection, add GOOGLE_API_KEY to environment variables
 - Without API key, application automatically falls back to RandomForest ML model
-- Application binds to 0.0.0.0:5000 for Replit proxy compatibility
 
 ## User Preferences
 

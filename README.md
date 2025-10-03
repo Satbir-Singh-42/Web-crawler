@@ -14,7 +14,7 @@ A powerful Flask web application that detects phishing domains using AI and mach
 - 📊 **Batch Processing** - Upload Excel files to analyze multiple domains
 - ⚡ **Real-time Analysis** - Multi-threaded concurrent scanning
 
-## 🚀 Quick Start (Replit)
+## 🚀 Quick Start
 
 ### 1. Install Dependencies (First Time Only)
 
@@ -152,7 +152,7 @@ curl https://your-repl-url.repl.co/api/analysis/{analysis_id}
 
 ## 🔐 Environment Variables
 
-Create a `.env` file or use Replit Secrets:
+Create a `.env` file:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
@@ -167,23 +167,14 @@ Create a `.env` file or use Replit Secrets:
 1. Go to [Google AI Studio](https://makersuite.google.com/app/apikey)
 2. Click "Get API Key"
 3. Create a new API key
-4. Add to Replit Secrets as `GOOGLE_API_KEY`
+4. Add to as `GOOGLE_API_KEY`
 
 **Kaggle API (Optional):**
 1. Go to [Kaggle Account Settings](https://www.kaggle.com/account)
 2. Scroll to "API" section
 3. Click "Create New API Token"
-4. Add credentials to Replit Secrets
 
 ## 🚢 Deployment
-
-### Replit Deployment
-
-1. Click the **Deploy** button in Replit
-2. The app uses Gunicorn for production:
-   - 4 workers for concurrent requests
-   - 120-second timeout for long-running checks
-   - Autoscale deployment for efficiency
 
 ### Configuration
 - **Development**: Flask debug server on port 5000
@@ -240,12 +231,12 @@ curl -X POST http://localhost:5000/ml-detect \
 ## 🔍 Troubleshooting
 
 ### "ML model loaded successfully" but Gemini API not working
-- Check if `GOOGLE_API_KEY` is set in Replit Secrets
+- Check if `GOOGLE_API_KEY` is set in env
 - Verify the API key is valid at [Google AI Studio](https://makersuite.google.com/app/apikey)
 - The app will automatically use the ML model fallback
 
 ### Port 5000 already in use
-- Replit automatically handles port assignment
+- Automatically handles port assignment
 - The app is configured to use `0.0.0.0:5000`
 
 ### LSP import warnings
