@@ -58,8 +58,43 @@ def extract_ml_features(domain):
     features['subdomain_count'] = domain.count('.') - 1 if domain.count('.') > 0 else 0
     return features
 
+def validate_gemini_response(result):
+    """Validate Gemini API response structure and data"""
+    if not isinstance(result, dict):
+        return False, "Response is not a dictionary"
+    
+    required_fields = ['is_phishing', 'confidence', 'reasons', 'classification']
+    for field in required_fields:
+        if field not in result:
+            return False, f"Missing required field: {field}"
+    
+    if not isinstance(result['is_phishing'], bool):
+        return False, "is_phishing must be a boolean"
+    
+    if not isinstance(result['confidence'], (int, float)):
+        return False, "confidence must be a number"
+    
+    if not (0 <= result['confidence'] <= 100):
+        return False, "confidence must be between 0 and 100"
+    
+    if not isinstance(result['reasons'], list):
+        return False, "reasons must be a list"
+    
+    if not result['reasons']:
+        return False, "reasons list cannot be empty"
+    
+    if result['classification'] not in ['Phishing', 'Legitimate']:
+        return False, f"Invalid classification: {result['classification']}"
+    
+    is_phishing_matches = (result['is_phishing'] and result['classification'] == 'Phishing') or \
+                          (not result['is_phishing'] and result['classification'] == 'Legitimate')
+    if not is_phishing_matches:
+        return False, "is_phishing and classification fields don't match"
+    
+    return True, "Valid"
+
 def check_with_gemini(domain):
-    """Check domain credibility using Google Gemini API with fallback"""
+    """Check domain credibility using Google Gemini API with comprehensive validation"""
     if not gemini_model:
         return None, "Gemini API not available"
     
@@ -71,31 +106,49 @@ Please evaluate if this domain is legitimate or potentially a phishing domain. C
 2. Suspicious keywords (login, verify, secure, account)
 3. Domain structure and patterns
 4. Known legitimate domains
+5. TLD (top-level domain) reputation
 
-Respond in JSON format with:
+Respond ONLY in valid JSON format with:
 {{
   "is_phishing": true/false,
   "confidence": 0-100,
-  "reasons": ["reason1", "reason2"],
+  "reasons": ["reason1", "reason2", "reason3"],
   "classification": "Phishing" or "Legitimate"
-}}"""
+}}
+
+Important: Provide at least 2-3 specific reasons for your classification."""
 
         response = gemini_model.generate_content(prompt)
         
+        if not response or not response.text:
+            return None, "Empty response from Gemini API"
+        
         import json
         result_text = response.text.strip()
+        
         if result_text.startswith('```json'):
             result_text = result_text[7:-3].strip()
         elif result_text.startswith('```'):
             result_text = result_text[3:-3].strip()
-            
-        result = json.loads(result_text)
+        
+        try:
+            result = json.loads(result_text)
+        except json.JSONDecodeError as je:
+            return None, f"Invalid JSON response: {str(je)}"
+        
+        is_valid, validation_msg = validate_gemini_response(result)
+        if not is_valid:
+            return None, f"Invalid response format: {validation_msg}"
+        
+        print(f"✓ Gemini API validated: {domain} -> {result['classification']} ({result['confidence']}%)")
         return result, None
         
     except Exception as e:
         error_msg = str(e)
         if 'quota' in error_msg.lower() or 'rate' in error_msg.lower():
             return None, f"API quota exceeded: {error_msg}"
+        elif 'api key' in error_msg.lower():
+            return None, "Invalid API key"
         return None, f"API error: {error_msg}"
 
 class AdvancedDomainChecker:
@@ -201,12 +254,14 @@ class AdvancedDomainChecker:
 
                 if isinstance(creation_date, str):
                     try:
-                        creation_date = datetime.strptime(creation_date, '%Y-%m-%d %H:%M:%S')
+                        creation_date = datetime.strptime(str(creation_date), '%Y-%m-%d %H:%M:%S')
                     except:
                         try:
-                            creation_date = datetime.strptime(creation_date, '%d-%b-%Y')
+                            creation_date = datetime.strptime(str(creation_date), '%d-%b-%Y')
                         except:
                             return True, "Could not parse creation date"
+                elif not isinstance(creation_date, datetime):
+                    return True, "Could not parse creation date"
 
                 domain_age = (datetime.now() - creation_date).days
                 if domain_age < 30:
@@ -486,9 +541,42 @@ def check_domain():
         'reason': reason
     })
 
+def cross_validate_results(domain, gemini_result, ml_prediction, ml_probability):
+    """Cross-validate Gemini and ML model results for consistency"""
+    gemini_is_phishing = gemini_result.get('is_phishing', False)
+    gemini_confidence = gemini_result.get('confidence', 0)
+    
+    ml_is_phishing = bool(ml_prediction == 1)
+    ml_confidence = float(ml_probability[int(ml_prediction)]) * 100
+    
+    agreement = gemini_is_phishing == ml_is_phishing
+    
+    validation_result = {
+        'agreement': agreement,
+        'gemini_classification': 'Phishing' if gemini_is_phishing else 'Legitimate',
+        'ml_classification': 'Phishing' if ml_is_phishing else 'Legitimate',
+        'gemini_confidence': gemini_confidence,
+        'ml_confidence': ml_confidence,
+        'confidence_difference': abs(gemini_confidence - ml_confidence)
+    }
+    
+    if agreement:
+        validation_result['status'] = 'Both models agree'
+        if abs(gemini_confidence - ml_confidence) < 20:
+            validation_result['reliability'] = 'High'
+        else:
+            validation_result['reliability'] = 'Medium'
+    else:
+        validation_result['status'] = 'Models disagree - requires manual review'
+        validation_result['reliability'] = 'Low'
+        validation_result['warning'] = f"Gemini says {validation_result['gemini_classification']}, ML says {validation_result['ml_classification']}"
+    
+    print(f"Cross-validation for {domain}: {validation_result['status']} (Reliability: {validation_result['reliability']})")
+    return validation_result
+
 @app.route('/ml-detect', methods=['POST'])
 def ml_detect():
-    """Detect phishing domain using Gemini API with ML model fallback"""
+    """Detect phishing domain using Gemini API with ML model fallback and cross-validation"""
     data = request.get_json()
     domain = data.get('domain')
     
@@ -498,6 +586,31 @@ def ml_detect():
     domain_clean = domain.replace('http://', '').replace('https://', '').split('/')[0]
     
     gemini_result, gemini_error = check_with_gemini(domain_clean)
+    features = extract_ml_features(domain_clean)
+    
+    if gemini_result and ml_model:
+        try:
+            feature_columns = ['length', 'has_digit', 'has_hyphen', 'num_dots', 'num_digits', 'suspicious_keywords', 'tld_length', 'subdomain_count']
+            feature_values = [features[col] for col in feature_columns]
+            
+            ml_prediction = ml_model.predict([feature_values])[0]
+            ml_probability = ml_model.predict_proba([feature_values])[0]
+            
+            cross_validation = cross_validate_results(domain_clean, gemini_result, ml_prediction, ml_probability)
+            
+            result = {
+                'domain': domain_clean,
+                'is_phishing': gemini_result.get('is_phishing', False),
+                'confidence': float(gemini_result.get('confidence', 0)),
+                'classification': gemini_result.get('classification', 'Unknown'),
+                'reasons': gemini_result.get('reasons', []),
+                'detection_method': 'Google Gemini API (Cross-validated with ML)',
+                'features': features,
+                'cross_validation': cross_validation
+            }
+            return jsonify(result)
+        except Exception as e:
+            print(f"Cross-validation failed: {e}")
     
     if gemini_result:
         result = {
@@ -507,7 +620,7 @@ def ml_detect():
             'classification': gemini_result.get('classification', 'Unknown'),
             'reasons': gemini_result.get('reasons', []),
             'detection_method': 'Google Gemini API',
-            'features': extract_ml_features(domain_clean)
+            'features': features
         }
         return jsonify(result)
     
@@ -525,11 +638,14 @@ def ml_detect():
         prediction = ml_model.predict([feature_values])[0]
         probability = ml_model.predict_proba([feature_values])[0]
         
+        is_phishing = bool(prediction == 1)
+        confidence = float(probability[int(prediction)]) * 100
+        
         result = {
             'domain': domain_clean,
-            'is_phishing': bool(prediction),
-            'confidence': float(probability[1]) * 100 if prediction else float(probability[0]) * 100,
-            'classification': 'Phishing' if prediction else 'Legitimate',
+            'is_phishing': is_phishing,
+            'confidence': confidence,
+            'classification': 'Phishing' if is_phishing else 'Legitimate',
             'detection_method': 'ML Model (Fallback)',
             'gemini_error': gemini_error,
             'features': features
@@ -585,11 +701,14 @@ def batch_detect():
                 prediction = ml_model.predict([feature_values])[0]
                 probability = ml_model.predict_proba([feature_values])[0]
                 
+                is_phishing = bool(prediction == 1)
+                confidence = float(probability[int(prediction)]) * 100
+                
                 results.append({
                     'domain': domain_clean,
-                    'is_phishing': bool(prediction),
-                    'confidence': float(probability[1]) * 100 if prediction else float(probability[0]) * 100,
-                    'classification': 'Phishing' if prediction else 'Legitimate',
+                    'is_phishing': is_phishing,
+                    'confidence': confidence,
+                    'classification': 'Phishing' if is_phishing else 'Legitimate',
                     'detection_method': 'ML Model'
                 })
                 ml_count += 1
