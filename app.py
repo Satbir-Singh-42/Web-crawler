@@ -21,7 +21,17 @@ from google.genai import types
 lev_distance = jellyfish.levenshtein_distance
 
 app = Flask(__name__)
-app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production') 
+app.secret_key = os.environ.get('SECRET_KEY')
+if not app.secret_key:
+    if os.environ.get('FLASK_DEBUG', 'False').lower() == 'true':
+        import secrets
+        app.secret_key = secrets.token_hex(32)
+        print("Warning: SECRET_KEY not set. Using random key for development.")
+    else:
+        raise RuntimeError(
+            "SECRET_KEY environment variable is required for production. "
+            "Set it to a secure random value."
+        ) 
 
 analysis_results = {}
 
@@ -739,4 +749,5 @@ def batch_detect():
         return jsonify({'error': f'Error processing file: {str(e)}'}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True)
+    debug_mode = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
+    app.run(host='0.0.0.0', port=5000, debug=debug_mode, threaded=True)
