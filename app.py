@@ -32,14 +32,15 @@ except Exception as e:
     ml_model = None
 
 try:
-    api_key = 'AIzaSyCXLpbuVAZZawLGX_nu4EcJK0vQz2lUyIQ'
+    import os
+    api_key = os.environ.get('GOOGLE_API_KEY')
     if api_key:
         genai.configure(api_key=api_key)
         gemini_model = genai.GenerativeModel('gemini-2.0-flash-exp')
         print("Google Gemini API configured successfully")
     else:
         gemini_model = None
-        print("Warning: GOOGLE_API_KEY not found")
+        print("Warning: GOOGLE_API_KEY not found in environment variables")
 except Exception as e:
     print(f"Warning: Could not configure Gemini API: {e}")
     gemini_model = None
