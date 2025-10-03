@@ -18,10 +18,15 @@ import pandas as pd
 import os
 from google import genai
 from google.genai import types
+from dotenv import load_dotenv
+
+load_dotenv()
+
 lev_distance = jellyfish.levenshtein_distance
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY')
+
 if not app.secret_key:
     if os.environ.get('FLASK_DEBUG', 'False').lower() == 'true':
         import secrets
