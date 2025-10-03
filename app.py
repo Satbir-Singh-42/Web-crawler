@@ -15,11 +15,12 @@ from urllib.parse import urlparse, urljoin
 import jellyfish
 import pickle
 import pandas as pd
+import os
 import google.generativeai as genai
 lev_distance = jellyfish.levenshtein_distance
 
 app = Flask(__name__)
-app.secret_key = 'secretkey' 
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production') 
 
 analysis_results = {}
 
@@ -32,7 +33,6 @@ except Exception as e:
     ml_model = None
 
 try:
-    import os
     api_key = os.environ.get('GOOGLE_API_KEY')
     if api_key:
         genai.configure(api_key=api_key)
