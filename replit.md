@@ -4,6 +4,20 @@
 
 A Flask-based web application that detects and analyzes potential phishing domains through comprehensive security checks, SSL validation, domain authentication, and AI/ML-powered content analysis. The system uses Google Gemini API with a RandomForest ML fallback to provide intelligent phishing detection with detailed risk assessment.
 
+## Recent Changes (October 3, 2025)
+
+### GitHub Import Setup
+- **Security Fix**: Removed hardcoded Google Gemini API key from source code and migrated to environment variable (`GOOGLE_API_KEY`)
+- **Dependencies**: Installed all required Python packages including Flask, scikit-learn, pandas, and google-generativeai
+- **Workflow Configuration**: Set up development workflow to run Flask application on `0.0.0.0:5000`
+- **Deployment Configuration**: Configured production deployment with Gunicorn using autoscale deployment target with 4 workers
+- **Python Version**: Using Python 3.11 in Replit environment
+
+### Security Improvements
+- API keys are now securely managed through environment variables instead of being hardcoded
+- Application will fallback to ML model if Google Gemini API key is not configured
+- Production deployment uses Gunicorn WSGI server for enhanced security and performance
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
