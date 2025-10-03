@@ -16,7 +16,6 @@ import jellyfish
 import pickle
 import pandas as pd
 import google.generativeai as genai
-import os
 lev_distance = jellyfish.levenshtein_distance
 
 app = Flask(__name__)
@@ -33,7 +32,7 @@ except Exception as e:
     ml_model = None
 
 try:
-    api_key = os.environ.get('GOOGLE_API_KEY')
+    api_key = 'AIzaSyCXLpbuVAZZawLGX_nu4EcJK0vQz2lUyIQ'
     if api_key:
         genai.configure(api_key=api_key)
         gemini_model = genai.GenerativeModel('gemini-2.0-flash-exp')
