@@ -11,17 +11,4 @@ openpyxl
 pandas
 scikit-learn
 google-generativeai
-beautifulsoup4==4.12.2
-dnspython==2.4.2
-Flask==2.3.3
-google-generativeai
-gunicorn
-jellyfish==1.0.3
-openpyxl
-pandas
-python-whois==0.8.0
-requests==2.31.0
-scikit-learn
-tldextract==3.4.4
-whois
 kagglehub
